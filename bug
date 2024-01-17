@@ -1,0 +1,26 @@
+Hello, JSCPP.es5.min.js is used in web pages after nmp run build. Unable to output results. Console output:
+TypeError: input is not a function
+    at Object.getInput (JSCPP.js:16017:24)
+    at JSCPP.js:13954:39
+    at new Promise (<anonymous>)
+    at _default (JSCPP.js:13951:46)
+    at BinOpExpression$ (JSCPP.js:15526:89)
+    at tryCatch (JSCPP.js:24299:40)
+    at Generator.invoke [as _invoke] (JSCPP.js:24537:22)
+    at prototype.<computed> [as next] (JSCPP.js:24351:21)
+    at tryCatch (JSCPP.js:24299:40)
+    at maybeInvokeDelegate (JSCPP.js:24599:18)
+JSCPP.js:15997 TypeError: input is not a function
+    at Object.getInput (JSCPP.js:16017:24)
+    at JSCPP.js:13954:39
+    at new Promise (<anonymous>)
+    at _default (JSCPP.js:13951:46)
+    at BinOpExpression$ (JSCPP.js:15526:89)
+    at tryCatch (JSCPP.js:24299:40)
+    at Generator.invoke [as _invoke] (JSCPP.js:24537:22)
+    at prototype.<computed> [as next] (JSCPP.js:24351:21)
+    at tryCatch (JSCPP.js:24299:40)
+    at maybeInvokeDelegate (JSCPP.js:24599:18)
+
+
+Thank you. Finally, I would like to request something similar: https://felixhao28.github.io/JSCPP/ How about this demonstration site? I would like to use the version of JavaScript file that you most want

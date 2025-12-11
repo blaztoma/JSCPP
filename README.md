@@ -452,3 +452,16 @@ See current progress in [_includes_](src/includes) folder.
 ## Bug report? Feedback?
 
 Post it on Issues.
+
+## Acknowledgments
+
+<table cellspacing="0" cellpadding="0" border=0>
+<tr border=0>
+<td border=0>
+This software has been developed as a part of the FGPE++ Gamified Programming Learning at Scale (https://fgpeplus2.usz.edu.pl/) project, which was co-funded by the European Union.
+</td>
+<td border=0>
+![Framework for Gamified Programming Education project](logo_FGPE.jpg) ![Erasmus+](logo_erasmus.jpg)
+</td>
+</tr>
+</table>

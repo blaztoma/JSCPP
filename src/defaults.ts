@@ -691,8 +691,44 @@ types["function"] = {
         }
     }
 };
+
+/**
+ * Identity of two pointers, for `==` and `!=`.
+ *
+ * A pointer is null when its target is null (normal) or its backing array is
+ * absent (array). Comparing a live pointer with NULL is the loop condition every
+ * linked-list traversal is written around, so both spellings have to agree on
+ * what "null" means before the targets are compared.
+ */
+function pointersAreEqual(rt: any, l: any, r: any): boolean {
+    const targetOf = (p: any) => {
+        if (!rt.isPointerType(p)) { return undefined; }
+        if (rt.isArrayType(p)) { return p.v.target ?? null; }
+        return p.v.target ?? null;
+    };
+
+    // An integer 0 stands in for a null pointer, as C++ allows.
+    const asNull = (p: any) => rt.isNumericType(p) && (p.v === 0);
+
+    const lNull = asNull(l) || (targetOf(l) === null);
+    const rNull = asNull(r) || (targetOf(r) === null);
+
+    if (lNull || rNull) { return lNull && rNull; }
+    return targetOf(l) === targetOf(r);
+}
+
 types["pointer_normal"] = {
     handlers: {
+        "o(==)": {
+            default(rt, l, r) {
+                return rt.val(rt.boolTypeLiteral, pointersAreEqual(rt, l, r));
+            }
+        },
+        "o(!=)": {
+            default(rt, l, r) {
+                return rt.val(rt.boolTypeLiteral, !pointersAreEqual(rt, l, r));
+            }
+        },
         "o(*)": {
             default(rt, l, r) {
                 if (r === undefined) {
@@ -722,6 +758,34 @@ types["pointer_normal"] = {
 };
 types["pointer_array"] = {
     handlers: {
+        "o(==)": {
+            default(rt, l, r) {
+                return rt.val(rt.boolTypeLiteral, pointersAreEqual(rt, l, r));
+            }
+        },
+        "o(!=)": {
+            default(rt, l, r) {
+                return rt.val(rt.boolTypeLiteral, !pointersAreEqual(rt, l, r));
+            }
+        },
+        "o(->)": {
+            default(rt, l) {
+                if (!rt.isArrayType(l)) {
+                    rt.raiseException(`pointer (${rt.makeValueString(l)}) is not an array pointer`);
+                }
+                // Same lvalue shape o(*) returns: captureValue resolves it to
+                // the live element, so p->x reads and writes the element that
+                // p[0].x does. This is what makes `new C` pointers usable with
+                // arrow syntax — they are array pointers of length one.
+                return {
+                    type: "pointer",
+                    left: true,
+                    t: l.t.eleType,
+                    array: l.v.target,
+                    arrayIndex: l.v.position,
+                };
+            }
+        },
         "o(*)": {
             default(rt, l, r) {
                 if (r === undefined) {

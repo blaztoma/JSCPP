@@ -1,4 +1,5 @@
 import { resolveIdentifier } from "./includes/shared/string_utils";
+import * as classes from "./classes";
 import { ArrayType, CRuntime, RuntimeScope, Variable, VariableType } from "./rt";
 
 /*
@@ -367,42 +368,97 @@ export class Interpreter extends BaseInterpreter {
                 vectorClass.readonly = false;
                 rt.defVar(s.Identifier, basetype, vectorClass);
             },
+            /**
+             * `struct` / `class` declaration.
+             *
+             * The heavy lifting lives in ./classes, which documents how a class
+             * is assembled and why it costs so little. The order here is load
+             * bearing: the type is registered BEFORE its member declarators are
+             * visited, so a member may refer to the class being declared —
+             * `Node* next;` inside `struct Node`. `newStruct` closes over the
+             * descriptor array by reference, so filling it afterwards is what
+             * makes that work.
+             */
             *StructDeclaration(interp, s, param) {
                 ({ rt } = interp);
 
+                const body = classes.splitClassBody(s.StructMemberList);
+                const base = classes.resolveBaseClass(rt, s.Base ?? null);
+
                 for (const identifier of s.DeclarationIdentifiers) {
-                    const structMemberList = [];
-                    for (const structMember of s.StructMemberList) {
-                        for (const dec of structMember.Declarators) {
-                            let init = dec.Initializers;
+                    // Inherited fields come first so the derived layout extends
+                    // the base's, and their initialisers ride along unchanged.
+                    const members: any[] = base ? [...base.members] : [];
 
-                            param.basetype = rt.simpleType(structMember.MemberType);
-                            const { name, type } = yield* interp.visit(interp, dec.Declarator, param);
-
-                            if (init == null) {
-                                init = rt.defaultValue(type, true);
-                            } else {
-                                init = yield* interp.visit(interp, init.Expression);
-                            }
-
-                            structMemberList.push({
-                                name,
-                                type,
-                                initialize(rt: any, _this: any) {
-                                    init.left = true;
-                                    return init;
-                                }
-                            });
-                        }
+                    let structType;
+                    if (s.InitVariables) {
+                        structType = rt.newStruct(`initialized_struct_${identifier}`, members);
+                    } else {
+                        structType = rt.newStruct(identifier, members);
                     }
+
+                    yield* classes.buildMemberDescriptors(interp, rt, body.dataMembers, members, param);
 
                     if (s.InitVariables) {
-                        const structType = rt.newStruct(`initialized_struct_${identifier}`, structMemberList);
                         rt.defVar(identifier, structType, rt.defaultValue(structType));
-                    } else {
-                        rt.newStruct(identifier, structMemberList);
+                    }
+
+                    if (base != null) {
+                        classes.inheritHandlers(rt, structType, base);
+                    }
+
+                    const memberNames = members.map((member: any) => member.name);
+                    const methodNames = body.methods
+                        .map((method: any) => method.Declarator.left.Identifier)
+                        .concat(base ? base.methodNames : []);
+
+                    yield* classes.installConstructors(
+                        interp, rt, structType, identifier, body.constructors, memberNames, base, param);
+
+                    for (const method of body.methods) {
+                        yield* classes.defineMethod(
+                            interp, rt, structType, method, memberNames, methodNames, param);
                     }
                 }
+            },
+            /**
+             * `new T` and `new T[n]`.
+             *
+             * Both allocate through the same array machinery a stack array uses,
+             * so the result is an ordinary array pointer and indexing,
+             * dereference and pointer arithmetic all keep working with no new
+             * code paths. A scalar `new T` is an array of one, which makes `*p`
+             * and `p[0]` both correct without a second representation.
+             */
+            *NewExpression(interp, s, param) {
+                ({ rt } = interp);
+
+                const elementType = rt.simpleType(s.TypeSpecifiers);
+                let count = 1;
+
+                if (s.Size != null) {
+                    const size = yield* interp.visit(interp, s.Size, param);
+                    count = rt.cast(rt.intTypeLiteral, size).v;
+                    if (!(count >= 0)) {
+                        rt.raiseException("cannot allocate an array of negative size");
+                    }
+                }
+
+                return rt.defaultValue(rt.arrayPointerType(elementType, count), true);
+            },
+            /**
+             * `delete` and `delete[]`.
+             *
+             * The operand is evaluated for its side effects, then nothing is
+             * freed: allocations live on the JavaScript heap and are reclaimed
+             * by its collector. It is accepted rather than rejected because
+             * students are taught to write it, and refusing to parse correct C++
+             * would be the worse failure.
+             */
+            *DeleteExpression(interp, s, param) {
+                ({ rt } = interp);
+                yield* interp.visit(interp, s.Expression, param);
+                return undefined;
             },
             *Initializer_expr(interp, s, param) {
                 ({
@@ -774,6 +830,26 @@ export class Interpreter extends BaseInterpreter {
                 ({
                     rt
                 } = interp);
+
+                // `Student("Ada", 88)` — a type name in call position constructs
+                // a temporary rather than calling a function. This is checked
+                // before the callee is evaluated, because evaluating a type name
+                // as a variable is exactly what fails ("variable Student does
+                // not exist"). Only a bare identifier that names a struct or
+                // class is treated this way, so ordinary calls are untouched.
+                if (s.Expression.type === "IdentifierExpression") {
+                    const typeName = s.Expression.Identifier;
+                    const candidate = { type: "struct", name: typeName };
+                    if (!rt.varAlreadyDefined(typeName)
+                        && (rt.getTypeSignature(candidate) in rt.types)) {
+                        const constructorArgs: Variable[] = [];
+                        for (const argument of s.args) {
+                            constructorArgs.push(rt.captureValue(yield* interp.visit(interp, argument, param)));
+                        }
+                        return rt.makeConstructor(candidate as any, constructorArgs, false);
+                    }
+                }
+
                 const ret = yield* interp.visit(interp, s.Expression, param);
                 // console.log "==================="
                 // console.log "s: " + JSON.stringify(s)
@@ -826,7 +902,14 @@ export class Interpreter extends BaseInterpreter {
                     const {
                         member
                     } = s;
-                    ret = yield* rt.getFunc(ret.t, rt.makeOperatorFuncName("->"), [])(rt, ret);
+                    // The default -> handlers are plain functions, but this call
+                    // site assumed generators — `yield*` over a plain return is
+                    // "not iterable", which broke p->x on every plain pointer.
+                    // Accept both shapes.
+                    const arrowResult = rt.getFunc(ret.t, rt.makeOperatorFuncName("->"), [])(rt, ret);
+                    ret = (arrowResult != null && typeof arrowResult.next === "function")
+                        ? yield* arrowResult
+                        : arrowResult;
                     return rt.getMember(ret, member);
                 } else {
                     const member = yield* interp.visit(interp, {

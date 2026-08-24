@@ -322,6 +322,14 @@ export class CRuntime {
         this.voidPointerType = this.normalPointerType(this.voidTypeLiteral);
         this.nullPointer = this.val(this.voidPointerType, this.nullPointerValue) as PointerVariable;
         this.scope = [{ "$name": "global", variables: {} }];
+
+        // NULL and nullptr are seeded as globals rather than left to the
+        // preprocessor, so that <cstddef> need not be included for the spelling
+        // most coursework uses. Both name the same void null pointer the runtime
+        // already carried; castable() below lets it convert to any pointer type,
+        // which is what makes `node->next = NULL` and `while (p != NULL)` work.
+        this.scope[0].variables["NULL"] = this.nullPointer;
+        this.scope[0].variables["nullptr"] = this.nullPointer;
         this.namespace = {};
         this.typedefs = {};
     }
@@ -474,6 +482,37 @@ export class CRuntime {
         return ret.join(",");
     };
 
+    /**
+     * How far an argument type is from a parameter type, as a cost.
+     *
+     * C++ ORDERS the viable candidates for a call rather than treating every
+     * convertible one as equally good: an exact match outranks a promotion,
+     * which outranks a wider conversion. This is that ordering in miniature,
+     * and it is what lets `add(int, int)` sit beside `add(double, double)`.
+     * Ranking flatly by "is it castable" reports `add(2, 3)` as ambiguous,
+     * because an integer literal types as unsigned int here and so neither
+     * candidate is an identity match.
+     *
+     * Lower is better. Both overload resolution and constructor selection score
+     * candidates with this, so the two cannot disagree about which call wins.
+     */
+    rankConversion(argumentType: any, parameterType: any): number {
+        const IDENTITY = 0;
+        const WITHIN_INTEGER_FAMILY = 1;
+        const ACROSS_NUMERIC_FAMILIES = 2;
+        const OTHER_CONVERSION = 3;
+
+        if ((argumentType === "dummy") || (parameterType === "dummy")) { return OTHER_CONVERSION; }
+        if (this.isTypeEqualTo(argumentType, parameterType)) { return IDENTITY; }
+
+        if (this.isNumericType(argumentType) && this.isNumericType(parameterType)) {
+            return (this.isIntegerType(argumentType) === this.isIntegerType(parameterType))
+                ? WITHIN_INTEGER_FAMILY
+                : ACROSS_NUMERIC_FAMILIES;
+        }
+        return OTHER_CONVERSION;
+    };
+
     getCompatibleFunc(lt: VariableType | "global", name: string, args: (Variable | DummyVariable)[]) {
         let ret;
         const ltsig = this.getTypeSignature(lt);
@@ -487,6 +526,9 @@ export class CRuntime {
                     ret = t[name].functions[sig];
                 } else {
                     const compatibles: CFunction[] = [];
+                    // Ranked against the arguments, so that the best candidate
+                    // wins instead of every viable one tying. See rankConversion.
+                    const costs: number[] = [];
                     const reg = t[name].reg;
                     Object.keys(reg).forEach(signature => {
                         let newTs: (VariableType | "dummy")[];
@@ -515,7 +557,13 @@ export class CRuntime {
                                 i++;
                             }
                             if (ok) {
-                                compatibles.push(t[name].functions[this.makeParametersSignature(regArgInfo.args)]);
+                                const fn = t[name].functions[this.makeParametersSignature(regArgInfo.args)];
+                                compatibles.push(fn);
+                                let cost = 0;
+                                for (let j = 0; j < newDts.length; j++) {
+                                    cost += this.rankConversion(newTs[j], newDts[j]);
+                                }
+                                costs.push(cost);
                             }
                         }
                     });
@@ -529,7 +577,13 @@ export class CRuntime {
                             this.raiseException("no method " + name + " in " + this.makeTypeString(lt) + " accepts " + argsStr);
                         }
                     } else if (compatibles.length > 1) {
-                        this.raiseException("ambiguous method invoking, " + compatibles.length + " compatible methods");
+                        const best = Math.min(...costs);
+                        const winners = compatibles.filter((_, idx) => costs[idx] === best);
+                        if (winners.length === 1) {
+                            ret = winners[0];
+                        } else {
+                            this.raiseException("ambiguous method invoking, " + compatibles.length + " compatible methods");
+                        }
                     } else {
                         ret = compatibles[0];
                     }
@@ -952,6 +1006,13 @@ export class CRuntime {
         if (this.isTypeEqualTo(type1, type2)) {
             return true;
         }
+        if (this.isIntegerType(type1 as any) && this.isPointerType(type2)) {
+            // The literal 0 is a null pointer constant in C++, which is how
+            // `head->next = 0` and `while (cur != 0)` are written in most
+            // teaching material. Only integers convert this way — a pointer
+            // never silently becomes a number.
+            return true;
+        }
         if (this.isPrimitiveType(type1) && this.isPrimitiveType(type2)) {
             return this.isNumericType(type2) && this.isNumericType(type1);
         } else if (this.isPointerType(type1) && this.isPointerType(type2)) {
@@ -986,6 +1047,16 @@ export class CRuntime {
                 return this.cloneDeep(value);
             }
             return value;
+        }
+        if (this.isPointerType(type) && this.isIntegerType(value as any) && (value.v === 0)) {
+            // Null pointer constant: see the matching case in castable().
+            return this.val(type, this.makeNormalPointerValue(null));
+        }
+        if (this.isPointerType(type) && this.isPointerType(value.t)
+            && this.isNormalPointerType(value.t) && (value.v as any).target === null) {
+            // A null pointer of one type is a null pointer of any other, which
+            // is what lets the single shared NULL be assigned to every pointer.
+            return this.val(type, this.makeNormalPointerValue(null));
         }
         if (this.isPrimitiveType(type) && this.isPrimitiveType(value.t)) {
             if (type.name === "bool") {

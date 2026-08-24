@@ -159,19 +159,64 @@ Declaration
     }
     ;
 
+// `Base` in `class Derived : public Base`. The inheritance access specifier is
+// parsed and discarded: inheritance here is single and non-virtual, so public
+// and private inheritance behave identically.
+StructInheritance
+    = COLON (PUBLIC / PRIVATE / PROTECTED)? a:Identifier { return a; }
+    ;
+
 StructDeclaration 
-	= StructOrUnion a:Identifier LWING? b:(StructMemberDeclaration*) RWING? SEMI {
-    	return addPositionInfo({ type: 'StructDeclaration', DeclarationIdentifiers: [a], StructMemberList: b, InitVariables: false });
+	= StructOrUnion a:Identifier base:StructInheritance? LWING? b:(StructMemberDeclaration*) RWING? SEMI {
+    	return addPositionInfo({ type: 'StructDeclaration', DeclarationIdentifiers: [a], Base: base, StructMemberList: b, InitVariables: false });
     }
     /
     StructOrUnion LWING b:(StructMemberDeclaration*) RWING c:(x:Identifier COMMA? {return x;})* SEMI? {
     	return addPositionInfo({ type: 'StructDeclaration', DeclarationIdentifiers: c, StructMemberList: b, InitVariables: true });
-    } 
+    }
 
+// One entry inside a class or struct body.
+//
+// These alternatives are ORDERED, and the order is the rule. PEG commits to the
+// first alternative that matches, so the most syntactically distinctive form
+// must come first:
+//
+//   constructor      no return type, so it cannot match the member-function
+//                    rule; must precede it, since that rule would otherwise
+//                    consume the class name as a return type
+//   member function  a return type followed by a parameter list
+//   access label     public: / private: / protected:
+//   data member      everything else — the fallback
 StructMemberDeclaration
-  = a:TypeScopedIdentifier b:InitDeclaratorList SEMI {
+  = b:FunctionDirectDeclarator init:CtorInitList? c:CompoundStatement {
+    return addPositionInfo({type: 'StructConstructor', Declarator: b, InitList: init, CompoundStatement: c });
+  }
+  / a:DeclarationSpecifiers pointer:STAR? b:FunctionDirectDeclarator CONST? c:CompoundStatement {
+    // The trailing CONST is accepted so that `int get() const { ... }` parses.
+    // Const-correctness is not enforced; see src/classes.ts.
+    b.Pointer = pointer;
+    return addPositionInfo({type: 'StructMemberFunction', DeclarationSpecifiers: a, Declarator: b, CompoundStatement: c });
+  }
+  / a:AccessSpecifier {
+    return addPositionInfo({type: 'AccessSpecifier', Access: a });
+  }
+  / a:TypeScopedIdentifier b:InitDeclaratorList SEMI {
     return addPositionInfo({type: 'StructMember', MemberType: a, Declarators: b });
   };
+
+AccessSpecifier
+  = a:(PUBLIC / PRIVATE / PROTECTED) COLON { return a; }
+  ;
+
+// `: name(n), score(s)` — the member initialisers between a constructor's
+// parameter list and its body. Applied in the order written, before the body.
+CtorInitList
+  = COLON a:CtorInit b:(COMMA x:CtorInit {return x;})* { return [a].concat(b); }
+  ;
+
+CtorInit
+  = a:Identifier LPAR b:AssignmentExpression? RPAR { return addPositionInfo({type:'CtorInit', Member:a, Expression:b}); }
+  ;
 
 DeclarationSpecifiers
     = a:(
@@ -231,7 +276,7 @@ TypeSpecifier
     ;
 
 StructOrUnion
-    = a:(STRUCT / UNION) {return a;}
+    = a:(STRUCT / UNION / CLASS) {return a;}
     ;
 
 SpecifierQualifierList
@@ -486,7 +531,23 @@ ArgumentExpressionList
     ;
 
 UnaryExpression
-    = PostfixExpression
+    // The array form is matched first on purpose: a TypeName's optional
+    // AbstractDeclarator swallows "[3]", which leaves no size behind and
+    // silently allocates a single element.
+    //
+    // Both forms take DeclarationSpecifiers rather than SpecifierQualifierList,
+    // because the latter resolves only typedef names — `new MyClass` failed
+    // with "type is not defined" for every user-declared struct and class.
+    = NEW a:DeclarationSpecifiers LBRK b:Expression RBRK {
+      return addPositionInfo({type: 'NewExpression', TypeSpecifiers: a, Size: b});
+    }
+    / NEW a:DeclarationSpecifiers {
+      return addPositionInfo({type: 'NewExpression', TypeSpecifiers: a, Size: null});
+    }
+    / DELETE (LBRK RBRK)? a:UnaryExpression {
+      return addPositionInfo({type: 'DeleteExpression', Expression: a});
+    }
+    / PostfixExpression
     / INC a:UnaryExpression {return addPositionInfo({type: 'UnaryExpression_PreIncrement', Expression:a});}
     / DEC a:UnaryExpression {return addPositionInfo({type: 'UnaryExpression_PreDecrement', Expression:a});}
     / a:UnaryOperator b:CastExpression {
@@ -668,6 +729,12 @@ SIGNED    = a:"signed"        !IdChar Spacing {return a;};
 SIZEOF    = a:"sizeof"        !IdChar Spacing {return a;};
 STATIC    = a:"static"        !IdChar Spacing {return a;};
 STRUCT    = a:"struct"        !IdChar Spacing {return a;};
+CLASS     = a:"class"         !IdChar Spacing {return a;};
+NEW       = a:"new"           !IdChar Spacing {return a;};
+DELETE    = a:"delete"        !IdChar Spacing {return a;};
+PUBLIC    = a:"public"        !IdChar Spacing {return a;};
+PRIVATE   = a:"private"       !IdChar Spacing {return a;};
+PROTECTED = a:"protected"     !IdChar Spacing {return a;};
 SWITCH    = a:"switch"        !IdChar Spacing {return a;};
 TYPEDEF   = a:"typedef"       !IdChar Spacing {return a;};
 UNION     = a:"union"         !IdChar Spacing {return a;};
@@ -713,6 +780,12 @@ Keyword
       / "sizeof"
       / "static"
       / "struct"
+      / "class"
+      / "new"
+      / "delete"
+      / "public"
+      / "private"
+      / "protected"
       / "switch"
       / "typedef"
       / "union"

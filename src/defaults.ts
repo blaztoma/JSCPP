@@ -768,24 +768,6 @@ types["pointer_array"] = {
                 return rt.val(rt.boolTypeLiteral, !pointersAreEqual(rt, l, r));
             }
         },
-        "o(->)": {
-            default(rt, l) {
-                if (!rt.isArrayType(l)) {
-                    rt.raiseException(`pointer (${rt.makeValueString(l)}) is not an array pointer`);
-                }
-                // Same lvalue shape o(*) returns: captureValue resolves it to
-                // the live element, so p->x reads and writes the element that
-                // p[0].x does. This is what makes `new C` pointers usable with
-                // arrow syntax — they are array pointers of length one.
-                return {
-                    type: "pointer",
-                    left: true,
-                    t: l.t.eleType,
-                    array: l.v.target,
-                    arrayIndex: l.v.position,
-                };
-            }
-        },
         "o(*)": {
             default(rt, l, r) {
                 if (r === undefined) {
@@ -814,6 +796,10 @@ types["pointer_array"] = {
                 return rt.types["pointer_array"].handlers["o(*)"].default(rt, r);
             }
         },
+        // Arrow on an array pointer already works, and `new C` pointers are
+        // array pointers of length one — so this is what makes p->member reach
+        // a heap-allocated object. o(*) returns the element as an l-value, which
+        // is why p->x both reads and writes the same storage p[0].x does.
         "o(->)": {
             default(rt, l) {
                 l = rt.types["pointer_array"].handlers["o(*)"].default(rt, l);

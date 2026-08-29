@@ -169,6 +169,34 @@ int main(){ struct N *head = 0;
   printf("%d\\n", sum); return 0; }`,
     '#include <stdio.h>\n#include <stdlib.h>'), '', '6\n'],
 
+  // `!visited[i]` is in every graph algorithm, and a unary operator resolved
+  // against an UNCAPTURED array element — so `!` was always true. Dijkstra came
+  // back with two nodes unreachable and nobody would have known why.
+  ['! of an array element', C(`int main(){ int a[3] = {0, 1, 0}; int n = 0;
+  for (int i = 0; i < 3; i++) if (!a[i]) n++; printf("%d\\n", n); return 0; }`), '', '2\n'],
+
+  ['- and ~ of an array element', C(`int main(){ int a[2] = {5, 7};
+  printf("%d %d\\n", -a[0], ~a[1]); return 0; }`), '', '-5 -8\n'],
+
+  ['& and * still take the reference', C(`int main(){ int a[3] = {1, 2, 3};
+  int *p = &a[1]; printf("%d %d\\n", *p, *a); return 0; }`), '', '2 1\n'],
+
+  ['Dijkstra over a static matrix', C(`int main(){
+  int g[6][6]; for (int i = 0; i < 6; i++) for (int j = 0; j < 6; j++) g[i][j] = 0;
+  g[0][1]=7; g[0][2]=9; g[0][5]=14; g[1][2]=10; g[1][3]=15; g[2][3]=11; g[2][5]=2; g[3][4]=6; g[4][5]=9;
+  for (int i = 0; i < 6; i++) for (int j = 0; j < 6; j++) if (g[i][j]) g[j][i] = g[i][j];
+  int dist[6], seen[6];
+  for (int i = 0; i < 6; i++) { dist[i] = 1000000; seen[i] = 0; }
+  dist[0] = 0;
+  for (int it = 0; it < 6; it++) {
+    int u = -1;
+    for (int i = 0; i < 6; i++) if (!seen[i] && (u < 0 || dist[i] < dist[u])) u = i;
+    seen[u] = 1;
+    for (int v = 0; v < 6; v++) if (g[u][v] && dist[u] + g[u][v] < dist[v]) dist[v] = dist[u] + g[u][v];
+  }
+  for (int i = 0; i < 6; i++) printf("%d ", dist[i]);
+  printf("\\n"); return 0; }`), '', '0 7 9 20 20 11 \n'],
+
   // ── the plain C that already worked, so a regression is visible ────────────
   ['string.h', C(`int main(){ char a[40] = "Ada"; char b[10] = " Lovelace";
   strcat(a, b); printf("%s %d\\n", a, (int)strlen(a)); return 0; }`,

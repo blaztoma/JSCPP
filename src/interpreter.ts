@@ -980,7 +980,12 @@ export class Interpreter extends BaseInterpreter {
                 ({
                     rt
                 } = interp);
-                const ret = yield* interp.visit(interp, s.Expression, param);
+                let ret = yield* interp.visit(interp, s.Expression, param);
+                // An array element is a reference until it is captured, so `!a[i]`
+                // asked the wrong type for its operator and came out always true —
+                // which quietly breaks every `if (!visited[i])` in a graph walk.
+                // & and * must keep the reference, so they are left alone.
+                if (["!", "~", "-", "+"].includes(s.op)) ret = rt.captureValue(ret);
                 const r = rt.getFunc(ret.t, rt.makeOperatorFuncName(s.op), [])(rt, ret);
                 if (isGenerator(r)) {
                     return yield* r;

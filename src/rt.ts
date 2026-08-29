@@ -1055,6 +1055,12 @@ export class CRuntime {
             }
             return value;
         }
+        // `if (p)` and `while (p)`. A pointer is not a primitive, so bool fell
+        // through every branch below and off the end of this function.
+        if (this.isPrimitiveType(type) && type.name === "bool" && this.isPointerType(value.t)) {
+            const target = (value.v as any)?.target;
+            return this.val(type, target === null || target === undefined ? 0 : 1);
+        }
         if (this.isPointerType(type) && this.isIntegerType(value as any) && (value.v === 0)) {
             // Null pointer constant: see the matching case in castable().
             return this.val(type, this.makeNormalPointerValue(null));

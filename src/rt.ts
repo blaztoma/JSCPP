@@ -1106,6 +1106,21 @@ export class CRuntime {
         } else if (this.isReferenceType(type)) {
             return value;
         } else if (this.isPointerType(type)) {
+            // A malloc block has no type of its own; in C the assignment gives
+            // it one, which is the whole point of void*. The byte count travels
+            // with the block so it can be cut into elements of whatever type it
+            // lands in — the reason `int *p = malloc(3 * sizeof(int))` gives
+            // three ints rather than twelve chars.
+            if ((value as any).heapBytes != null) {
+                const eleType = this.isArrayType(type) ? type.eleType
+                    : this.isNormalPointerType(type) ? type.targetType : null;
+                if (eleType != null) {
+                    let width = 1;
+                    try { width = this.getSizeByType(eleType) || 1; } catch (e) { width = 1; }
+                    const count = Math.max(1, Math.floor((value as any).heapBytes / width));
+                    return this.defaultValue(this.arrayPointerType(eleType, count), true);
+                }
+            }
             if (this.isArrayType(value)) {
                 if (this.isNormalPointerType(type)) {
                     if (this.isTypeEqualTo(type.targetType, value.t.eleType)) {

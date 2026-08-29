@@ -72,6 +72,35 @@ export = {
 
         rt.regFunc(_srand, "global", "srand", [rt.unsignedintTypeLiteral], rt.voidTypeLiteral);
 
+        // ── the C heap ────────────────────────────────────────────────────────
+        // malloc has no type to work with, so the block carries only its size
+        // and rt.cast cuts it to the type it is assigned to. free is accepted
+        // and does nothing: allocations sit on the JavaScript heap, which its
+        // own collector reclaims. Refusing to run correct C would be worse than
+        // not reclaiming early, and the same trade is already made for delete.
+        const _block = function (rt: CRuntime, bytes: number) {
+            if (!(bytes >= 0)) rt.raiseException("cannot allocate a negative number of bytes");
+            const block: any = rt.defaultValue(rt.arrayPointerType(rt.charTypeLiteral, Math.max(1, bytes)), true);
+            block.heapBytes = bytes;
+            return block;
+        };
+
+        const _malloc = (rt: CRuntime, _this: Variable, size: IntVariable) => _block(rt, size.v as number);
+        rt.regFunc(_malloc, "global", "malloc", [rt.intTypeLiteral], rt.voidPointerType);
+
+        const _calloc = (rt: CRuntime, _this: Variable, count: IntVariable, size: IntVariable) =>
+            _block(rt, (count.v as number) * (size.v as number));
+        rt.regFunc(_calloc, "global", "calloc", [rt.intTypeLiteral, rt.intTypeLiteral], rt.voidPointerType);
+
+        // realloc returns a fresh block; the old contents are not carried over,
+        // which is a real difference from C and is written into the tool's
+        // "not supported" line rather than hidden.
+        const _realloc = (rt: CRuntime, _this: Variable, _ptr: Variable, size: IntVariable) => _block(rt, size.v as number);
+        rt.regFunc(_realloc, "global", "realloc", ["?", rt.intTypeLiteral], rt.voidPointerType);
+
+        const _free = (rt: CRuntime, _this: Variable, _ptr: Variable) => undefined;
+        rt.regFunc(_free, "global", "free", ["?"], rt.voidTypeLiteral);
+
         const _system = function (rt: CRuntime, _this: Variable, command: ArrayVariable) {
             if (command === rt.nullPointer) {
                 return rt.val(rt.intTypeLiteral, 1);

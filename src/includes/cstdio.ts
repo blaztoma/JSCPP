@@ -62,12 +62,17 @@ export = {
             stdio
         } = rt.config;
 
-        //console.log("drain 1");
-        let input_stream = stdio.drain();
+        // Drained on the first read, not on load, so `#include <cstdio>` beside
+        // an iostream program does not swallow what cin was going to read.
+        let input_stream: string = null;
+        const _in = function (): string {
+            if (input_stream === null) input_stream = stdio.drain() ?? "";
+            return input_stream;
+        };
 
         const _consume_next_char = function () {
             let char_return = "";
-            if (input_stream.length > 0) {
+            if (_in().length > 0) {
                 char_return = input_stream[0];
                 input_stream = input_stream.substr(1);
                 return char_return;
@@ -78,7 +83,7 @@ export = {
 
         const _consume_next_line = function () {
             let retval;
-            const next_line_break = input_stream.indexOf('\n');
+            const next_line_break = _in().indexOf('\n');
 
             if (next_line_break > -1) {
                 retval = input_stream.substr(0, next_line_break);
@@ -153,6 +158,40 @@ export = {
 
 
         rt.regFunc(_gets, "global", "gets", [char_pointer], char_pointer);
+
+        // The three standard streams exist as names so `fgets(buf, n, stdin)`
+        // and `fprintf(stderr, ...)` parse. There is one real input and one
+        // real output here, so they carry only their conventional numbers.
+        for (const [name, fd] of [["stdin", 0], ["stdout", 1], ["stderr", 2]] as [string, number][]) {
+            if (rt.scope[0].variables[name] == null) {
+                rt.scope[0].variables[name] = rt.val(rt.intTypeLiteral, fd);
+            }
+        }
+
+        // fgets is what a C course teaches instead of gets, so it has to exist
+        // or the safe idiom is the one that fails. The stream argument is
+        // accepted and ignored: this runtime has one input, stdin.
+        const _fgets = function (rt: CRuntime, _this: Variable, charPtr: ArrayVariable, size: IntVariable, _stream: Variable) {
+            const limit = (size.v as number) - 1;
+            if (limit <= 0 || _in().length === 0) return rt.val(char_pointer, charPtr.v);
+
+            // At most size-1 characters, stopping AFTER a newline rather than
+            // before it — fgets keeps the newline where gets drops it — and
+            // whatever does not fit stays in the stream for the next read.
+            const breakAt = input_stream.indexOf("\n");
+            const upTo = breakAt === -1 ? input_stream.length : breakAt + 1;
+            const taken = input_stream.substr(0, Math.min(limit, upTo));
+            input_stream = input_stream.substr(taken.length);
+
+            const destArray = charPtr.v.target;
+            for (let i = 0; i < taken.length; i++) {
+                destArray[i] = rt.val(rt.charTypeLiteral, taken.charCodeAt(i));
+            }
+            destArray[taken.length] = rt.val(rt.charTypeLiteral, 0);
+            return rt.val(char_pointer, charPtr.v);
+        };
+
+        rt.regFunc(_fgets, "global", "fgets", [char_pointer, rt.intTypeLiteral, "?"], char_pointer);
 
         // #DEPENDENT ON PRINTF##
         // #these implementations is dependent on printf implementation
@@ -310,7 +349,7 @@ export = {
 
         const _get_input = function (pre: string, next: string, match: string, type?: string) {
 
-            let tmp = input_stream;
+            let tmp = _in();
 
             let replace = `(${match})`;
 
@@ -513,7 +552,7 @@ export = {
             let val;
             const format = rt.getStringFromCharArray(format_pointer);
             const original_string = rt.getStringFromCharArray(original_string_pointer);
-            const original_input_stream = input_stream;
+            const original_input_stream = _in();
             input_stream = original_string;
             const matched_values = __scanf(format);
 

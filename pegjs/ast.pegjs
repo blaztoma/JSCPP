@@ -167,7 +167,21 @@ StructInheritance
     ;
 
 StructDeclaration 
-	= StructOrUnion a:Identifier base:StructInheritance? LWING? b:(StructMemberDeclaration*) RWING? SEMI {
+    // `typedef struct { ... } Name;` and `typedef struct Tag { ... } Name;`.
+    // Every name given is registered for the same type, which is what makes the
+    // tag and the alias interchangeable the way C expects.
+	= TYPEDEF StructOrUnion LWING b:(StructMemberDeclaration*) RWING a:Identifier SEMI {
+    	return addPositionInfo({ type: 'StructDeclaration', DeclarationIdentifiers: [a], Base: null, StructMemberList: b, InitVariables: false });
+    }
+    /
+    TYPEDEF StructOrUnion a:Identifier LWING b:(StructMemberDeclaration*) RWING c:Identifier SEMI {
+        // `typedef struct Node { ... } Node;` names the tag and the alias the
+        // same thing, which is the commonest spelling of all; registering it
+        // twice is what "already defined" was.
+    	return addPositionInfo({ type: 'StructDeclaration', DeclarationIdentifiers: a === c ? [a] : [a, c], Base: null, StructMemberList: b, InitVariables: false });
+    }
+    /
+    StructOrUnion a:Identifier base:StructInheritance? LWING? b:(StructMemberDeclaration*) RWING? SEMI {
     	return addPositionInfo({ type: 'StructDeclaration', DeclarationIdentifiers: [a], Base: base, StructMemberList: b, InitVariables: false });
     }
     /
@@ -219,7 +233,16 @@ CtorInit
   ;
 
 DeclarationSpecifiers
-    = a:(
+    // C's elaborated form: `struct Point p;` names the same type `Point p;`
+    // does, so it reduces to the bare identifier and the rest of the
+    // interpreter never learns the difference. The !LWING keeps this off a
+    // definition, which StructDeclaration owns.
+    = a:( StorageClassSpecifier / TypeQualifier / FunctionSpecifier )*
+      StructOrUnion b:Identifier !LWING
+      c:( StorageClassSpecifier / TypeQualifier / FunctionSpecifier )* {
+        return a.concat([b]).concat(c);
+      }
+    / a:(
        a:( StorageClassSpecifier / TypeQualifier / FunctionSpecifier )*
        b:( ScopedIdentifier / TypedefName )
        c:( StorageClassSpecifier / TypeQualifier / FunctionSpecifier )* {

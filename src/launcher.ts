@@ -51,7 +51,7 @@ export type InputFunction = () => Promise<string>;
 
 function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger | number {
     let step;
-    let inputbuffer = ""; // input.toString();
+    let inputbuffer: string = null;
     let proceed = true;
     let startTime: number;
     let readResult = "";
@@ -119,9 +119,13 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             getReadResult() {
                 return readResult;
             },
+            // Filled from the input function on first use rather than at
+            // start-up: <cstdio> drains on load, and a program that reads with
+            // cin would otherwise have its input taken by an include.
             drain() {
+                if (inputbuffer === null) inputbuffer = (input?.() as any) ?? "";
                 const x = inputbuffer;
-                inputbuffer = null;
+                inputbuffer = "";
                 return x;
             },
             getInput() {

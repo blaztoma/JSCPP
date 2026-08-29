@@ -6,8 +6,11 @@ export = function (rt: CRuntime, _this: Variable, dest: Variable, src: Variable)
         let i = src.v.position;
         const destarr = dest.v.target;
         let j = dest.v.position;
+        // Written cells must stay assignable, or `strcpy(buf, "x"); buf[0] = 'y';`
+        // — ordinary C — fails with "is not a left value".
         while ((i < srcarr.length) && (j < destarr.length) && (srcarr[i].v !== 0)) {
             destarr[j] = rt.clone(srcarr[i]);
+            destarr[j].left = true;
             i++;
             j++;
         }
@@ -16,7 +19,7 @@ export = function (rt: CRuntime, _this: Variable, dest: Variable, src: Variable)
         } else if (j === destarr.length) {
             rt.raiseException("destination array is not big enough");
         } else {
-            destarr[j] = rt.val(rt.charTypeLiteral, 0);
+            destarr[j] = rt.val(rt.charTypeLiteral, 0, true);
         }
     } else {
         rt.raiseException("destination or source is not an array");

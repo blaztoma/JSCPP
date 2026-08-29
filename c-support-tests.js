@@ -126,6 +126,25 @@ int main(){ struct Point *p = (struct Point *) malloc(sizeof(struct Point));
   fgets(a, 5, stdin); fgets(b, 5, stdin); printf("[%s][%s]", a, b); return 0; }`),
     'abcdefgh\n', '[abcd][efgh]'],
 
+  // strcpy and sprintf wrote plain values into the destination, so the buffer
+  // came back unassignable: `strcpy(buf, "x"); buf[0] = 'y';` — ordinary C —
+  // failed with "is not a left value". gets and fgets wrote the same way.
+  ['a buffer stays writable after strcpy', C(`int main(){ char b[16]; strcpy(b, "Lovelace");
+  b[0] = 'l'; printf("%s\\n", b); return 0; }`,
+    '#include <stdio.h>\n#include <string.h>'), '', 'lovelace\n'],
+
+  ['reverse in place after strcpy', C(`void rev(char *s){ int n = strlen(s);
+  for (int i = 0; i < n / 2; i++) { char t = s[i]; s[i] = s[n-1-i]; s[n-1-i] = t; } }
+int main(){ char b[16]; strcpy(b, "Lovelace"); rev(b); printf("%s\\n", b); return 0; }`,
+    '#include <stdio.h>\n#include <string.h>'), '', 'ecalevoL\n'],
+
+  ['a buffer stays writable after sprintf', C(`int main(){ char b[16]; sprintf(b, "%d-%d", 4, 2);
+  b[1] = '+'; printf("%s\\n", b); return 0; }`,
+    '#include <stdio.h>\n#include <string.h>'), '', '4+2\n'],
+
+  ['and after gets', C(`int main(){ char b[32]; gets(b); b[0] = 'X'; printf("%s\\n", b); return 0; }`),
+    'ada\n', 'Xda\n'],
+
   // ── the plain C that already worked, so a regression is visible ────────────
   ['string.h', C(`int main(){ char a[40] = "Ada"; char b[10] = " Lovelace";
   strcat(a, b); printf("%s %d\\n", a, (int)strlen(a)); return 0; }`,

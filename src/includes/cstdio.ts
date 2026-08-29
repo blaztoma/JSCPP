@@ -145,13 +145,13 @@ export = {
 
             for (let i = 0, end = return_value.length, asc = 0 <= end; asc ? i <= end : i >= end; asc ? i++ : i--) {
                 try {
-                    destArray[i] = rt.val(rt.charTypeLiteral, return_value.charCodeAt(i));
+                    destArray[i] = rt.val(rt.charTypeLiteral, return_value.charCodeAt(i), true);
                 } catch (error) {
-                    destArray[i] = rt.val(rt.charTypeLiteral, 0);
+                    destArray[i] = rt.val(rt.charTypeLiteral, 0, true);
                 }
             }
 
-            destArray[return_value.length] = rt.val(rt.charTypeLiteral, 0);
+            destArray[return_value.length] = rt.val(rt.charTypeLiteral, 0, true);
 
             return rt.val(char_pointer, charPtr.v);
         };
@@ -185,9 +185,9 @@ export = {
 
             const destArray = charPtr.v.target;
             for (let i = 0; i < taken.length; i++) {
-                destArray[i] = rt.val(rt.charTypeLiteral, taken.charCodeAt(i));
+                destArray[i] = rt.val(rt.charTypeLiteral, taken.charCodeAt(i), true);
             }
-            destArray[taken.length] = rt.val(rt.charTypeLiteral, 0);
+            destArray[taken.length] = rt.val(rt.charTypeLiteral, 0, true);
             return rt.val(char_pointer, charPtr.v);
         };
 

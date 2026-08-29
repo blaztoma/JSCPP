@@ -145,6 +145,30 @@ int main(){ char b[16]; strcpy(b, "Lovelace"); rev(b); printf("%s\\n", b); retur
   ['and after gets', C(`int main(){ char b[32]; gets(b); b[0] = 'X'; printf("%s\\n", b); return 0; }`),
     'ada\n', 'Xda\n'],
 
+  // `while (*p)` and `for (; s[i]; )` are how C walks a string, and an array
+  // element in a boolean context was ALWAYS false: the condition cast the
+  // reference without capturing it first. A pointer condition crashed outright.
+  ['a char array element is truthy', C(`int main(){ char s[8] = "abc";
+  if (s[0]) printf("yes\\n"); else printf("no\\n"); return 0; }`), '', 'yes\n'],
+
+  ['for (; s[i]; ) walks the string', C(`int main(){ char s[16] = "Lovelace"; int n = 0;
+  for (int i = 0; s[i]; i++) n++; printf("%d\\n", n); return 0; }`), '', '8\n'],
+
+  ['while (*p) walks it too', C(`int main(){ char s[16] = "Ada"; char *p = s; int n = 0;
+  while (*p) { n++; p++; } printf("%d\\n", n); return 0; }`), '', '3\n'],
+
+  ['a pointer is truthy, and null is not', C(`struct N { int v; };
+int main(){ struct N a; struct N *p = &a; struct N *q = 0;
+  printf("%s %s\\n", p ? "yes" : "no", q ? "yes" : "no"); return 0; }`), '', 'yes no\n'],
+
+  ['while (p) walks a linked list', C(`struct N { int v; struct N *next; };
+int main(){ struct N *head = 0;
+  for (int i = 3; i >= 1; i--) { struct N *n = malloc(sizeof(struct N)); n->v = i; n->next = head; head = n; }
+  int sum = 0; struct N *p = head;
+  while (p) { sum += p->v; p = p->next; }
+  printf("%d\\n", sum); return 0; }`,
+    '#include <stdio.h>\n#include <stdlib.h>'), '', '6\n'],
+
   // ── the plain C that already worked, so a regression is visible ────────────
   ['string.h', C(`int main(){ char a[40] = "Ada"; char b[10] = " Lovelace";
   strcat(a, b); printf("%s %d\\n", a, (int)strlen(a)); return 0; }`,

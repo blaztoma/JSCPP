@@ -561,7 +561,7 @@ export class Interpreter extends BaseInterpreter {
                 rt.enterScope(param.scope);
                 const e = yield* interp.visit(interp, s.Expression, param);
                 let ret;
-                if (rt.cast(rt.boolTypeLiteral, e).v) {
+                if (rt.cast(rt.boolTypeLiteral, rt.captureValue(e)).v) {
                     ret = yield* interp.visit(interp, s.Statement, param);
                 } else if (s.ElseStatement) {
                     ret = yield* interp.visit(interp, s.ElseStatement, param);
@@ -603,7 +603,7 @@ export class Interpreter extends BaseInterpreter {
                 while (true) {
                     if (s.Expression != null) {
                         let cond = yield* interp.visit(interp, s.Expression, param);
-                        cond = rt.cast(rt.boolTypeLiteral, cond).v;
+                        cond = rt.cast(rt.boolTypeLiteral, rt.captureValue(cond)).v;
                         if (!cond) { break; }
                     }
                     const r = yield* interp.visit(interp, s.Statement, param);
@@ -654,7 +654,7 @@ export class Interpreter extends BaseInterpreter {
                     }
                     if (s.Expression != null) {
                         let cond = yield* interp.visit(interp, s.Expression, param);
-                        cond = rt.cast(rt.boolTypeLiteral, cond).v;
+                        cond = rt.cast(rt.boolTypeLiteral, rt.captureValue(cond)).v;
                         if (!cond) { break; }
                     }
                 }
@@ -734,7 +734,7 @@ export class Interpreter extends BaseInterpreter {
                 while (true) {
                     if (s.Expression != null) {
                         let cond = yield* interp.visit(interp, s.Expression, param);
-                        cond = rt.cast(rt.boolTypeLiteral, cond).v;
+                        cond = rt.cast(rt.boolTypeLiteral, rt.captureValue(cond)).v;
                         if (!cond) { break; }
                     }
                     const r = yield* interp.visit(interp, s.Statement, param);
@@ -1066,7 +1066,7 @@ export class Interpreter extends BaseInterpreter {
                         return r;
                     }
                 } else {
-                    if (rt.cast(rt.boolTypeLiteral, left).v) {
+                    if (rt.cast(rt.boolTypeLiteral, rt.captureValue(left)).v) {
                         return yield* interp.visit(interp, s.right, param);
                     } else {
                         return left;
@@ -1089,7 +1089,7 @@ export class Interpreter extends BaseInterpreter {
                         return r;
                     }
                 } else {
-                    if (rt.cast(rt.boolTypeLiteral, left).v) {
+                    if (rt.cast(rt.boolTypeLiteral, rt.captureValue(left)).v) {
                         return left;
                     } else {
                         return yield* interp.visit(interp, s.right, param);
@@ -1100,7 +1100,7 @@ export class Interpreter extends BaseInterpreter {
                 ({
                     rt
                 } = interp);
-                const cond = rt.cast(rt.boolTypeLiteral, (yield* interp.visit(interp, s.cond, param))).v;
+                const cond = rt.cast(rt.boolTypeLiteral, rt.captureValue(yield* interp.visit(interp, s.cond, param))).v;
                 if (cond) { return yield* interp.visit(interp, s.t, param); } else { return yield* interp.visit(interp, s.f, param); }
             },
             *ConstantExpression(interp, s, param) {

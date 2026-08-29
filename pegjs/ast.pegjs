@@ -214,6 +214,14 @@ StructMemberDeclaration
   / a:AccessSpecifier {
     return addPositionInfo({type: 'AccessSpecifier', Access: a });
   }
+  / StructOrUnion a:TypeScopedIdentifier b:InitDeclaratorList SEMI {
+    // `struct Node *next;` INSIDE a struct. The elaborated form reaches a
+    // declaration through DeclarationSpecifiers and a cast through
+    // SpecifierQualifierList, but a member comes through here — which is why a
+    // self-referential struct, the one every C course builds first, did not
+    // parse while the C++ spelling did.
+    return addPositionInfo({type: 'StructMember', MemberType: a, Declarators: b });
+  }
   / a:TypeScopedIdentifier b:InitDeclaratorList SEMI {
     return addPositionInfo({type: 'StructMember', MemberType: a, Declarators: b });
   };

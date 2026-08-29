@@ -42,6 +42,28 @@ int main(){ struct Student roll[3];
   int total = 0; for (int i = 0; i < 3; i++) total += roll[i].score;
   printf("%d\\n", total); return 0; }`), '', '207\n'],   // 70+55+82
 
+  // A self-referential struct is the first data structure every C course
+  // builds, and `struct Node *next;` as a MEMBER reaches the grammar through a
+  // different rule than a declaration or a cast does.
+  ['self-referential struct, the C spelling', C(`struct Node { int v; struct Node *next; };
+int main(){ struct Node a, b; a.v = 1; b.v = 2; a.next = &b; b.next = 0;
+  printf("%d %d\\n", a.v, a.next->v); return 0; }`), '', '1 2\n'],
+
+  ['a struct held inside another struct', C(`struct Point { int x; int y; };
+struct Shape { int id; struct Point origin; };
+int main(){ struct Shape s; s.id = 7; s.origin.x = 3; s.origin.y = 4;
+  printf("%d %d %d\\n", s.id, s.origin.x, s.origin.y); return 0; }`), '', '7 3 4\n'],
+
+  ['a linked list built on the heap', C(`struct Node { int v; struct Node *next; };
+int main(){ struct Node *head = 0;
+  for (int i = 3; i >= 1; i--) {
+    struct Node *n = malloc(sizeof(struct Node));
+    n->v = i; n->next = head; head = n;
+  }
+  for (struct Node *p = head; p != 0; p = p->next) printf("%d ", p->v);
+  printf("\\n"); return 0; }`,
+    '#include <stdio.h>\n#include <stdlib.h>'), '', '1 2 3 \n'],
+
   // ── the heap ───────────────────────────────────────────────────────────────
   ['malloc cuts the block to the type', C(`int main(){ int *p = malloc(3 * sizeof(int));
   p[0] = 7; p[1] = 8; p[2] = 9;

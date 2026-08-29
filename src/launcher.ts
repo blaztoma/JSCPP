@@ -139,6 +139,10 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             }
         },
         includes: this.includes,
+        // Kept at "error". Unsigned arithmetic WRAPS in C, and this rejects
+        // correct programs for it — but "ignore" does not wrap either, it just
+        // stops complaining and returns a wrong number (4294967295u + 1 gives
+        // 1, not 0). A refusal is honest; silent bad arithmetic is not.
         unsigned_overflow: "error",
     };
 

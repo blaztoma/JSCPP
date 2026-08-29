@@ -62,6 +62,29 @@ int main(){ struct Student roll[3];
   printf("\\n"); free(a); return 0; }`,
     '#include <stdio.h>\n#include <stdlib.h>'), '', '0 1 4 9 16 \n'],
 
+  // sizeof reaches the type through a different grammar rule than a declaration
+  // does, so the elaborated form has to be accepted in both — this is malloc's
+  // own idiom and it is how the browser caught the half-done version.
+  ['sizeof an elaborated struct', C(`struct Student { char name[20]; int score; };
+int main(){ int n = 2; struct Student *roll = malloc(n * sizeof(struct Student));
+  roll[0].score = 70; roll[1].score = 80;
+  printf("%d\\n", roll[0].score + roll[1].score); free(roll); return 0; }`,
+    '#include <stdio.h>\n#include <stdlib.h>'), '', '150\n'],
+
+  // The cast form textbooks teach, and the void* round trip underneath it.
+  ['the cast form of malloc', C(`struct Point { int x; };
+int main(){ struct Point *p = (struct Point *) malloc(sizeof(struct Point));
+  p->x = 11; printf("%d\\n", p->x); free(p); return 0; }`,
+    '#include <stdio.h>\n#include <stdlib.h>'), '', '11\n'],
+
+  // Parking a block in a `void *` variable before casting it is NOT supported:
+  // the declaration succeeds and the initialisation does not, because a void
+  // pointer variable cannot hold the untyped block. Both forms a course teaches
+  // — assigning malloc straight to the typed pointer, and the cast above it —
+  // work, so this stays a documented limit rather than a fix.
+  ['a void pointer variable still declares', C(`int main(){ void *p; printf("ok\\n"); return 0; }`,
+    '#include <stdio.h>\n#include <stdlib.h>'), '', 'ok\n'],
+
   // ── reading input, which is what the Input panel promises ──────────────────
   ['scanf two integers', C(`int main(){ int a, b; scanf("%d %d", &a, &b); printf("%d\\n", a * b); return 0; }`),
     '6 7\n', '42\n'],

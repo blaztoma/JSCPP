@@ -368,6 +368,13 @@ export class CRuntime {
             return this.config.limits["pointer"].bytes;
         } else if (this.isPrimitiveType(t)) {
             return this.config.limits[t.name].bytes;
+        } else if (t.type === "struct" || t.type === "class") {
+            // A struct is the sum of its members, with no padding — which is
+            // what `malloc(n * sizeof(struct Student))` needs to be a number.
+            const registered = this.types[this.getTypeSignature(t)] as any;
+            const members: any[] = registered?.members ?? [];
+            return members.reduce((total, member) => total + this.getSizeByType(member.type), 0)
+                || this.config.limits["pointer"].bytes;
         } else {
             this.raiseException("not implemented");
         }
@@ -1107,18 +1114,20 @@ export class CRuntime {
             return value;
         } else if (this.isPointerType(type)) {
             // A malloc block has no type of its own; in C the assignment gives
-            // it one, which is the whole point of void*. The byte count travels
-            // with the block so it can be cut into elements of whatever type it
-            // lands in — the reason `int *p = malloc(3 * sizeof(int))` gives
-            // three ints rather than twelve chars.
-            if ((value as any).heapBytes != null) {
+            // it one, which is the whole point of void*. Its byte count travels
+            // on its type, so it can be cut into elements of whatever it lands
+            // in — the reason `int *p = malloc(3 * sizeof(int))` gives three
+            // ints rather than twelve chars. void* is not a type to cut to but
+            // the block still waiting for one, so it passes straight through.
+            const blockBytes = (value.t as any)?.fromMalloc;
+            if (blockBytes != null) {
                 const eleType = this.isArrayType(type) ? type.eleType
                     : this.isNormalPointerType(type) ? type.targetType : null;
+                if (eleType != null && eleType.type === "void") return value;
                 if (eleType != null) {
                     let width = 1;
                     try { width = this.getSizeByType(eleType) || 1; } catch (e) { width = 1; }
-                    const count = Math.max(1, Math.floor((value as any).heapBytes / width));
-                    return this.defaultValue(this.arrayPointerType(eleType, count), true);
+                    return this.defaultValue(this.arrayPointerType(eleType, Math.max(1, Math.floor(blockBytes / width))), true);
                 }
             }
             if (this.isArrayType(value)) {

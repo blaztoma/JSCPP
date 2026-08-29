@@ -303,7 +303,11 @@ StructOrUnion
     ;
 
 SpecifierQualifierList
-    = ( TypeQualifier*
+    // `sizeof(struct Student)` and `(struct Node *) p` reach the type through
+    // here rather than through DeclarationSpecifiers, so the elaborated form
+    // has to be accepted in both places or malloc's own idiom will not parse.
+    = a:TypeQualifier* StructOrUnion b:Identifier !LWING c:TypeQualifier* { return a.concat([b]).concat(c); }
+    / ( TypeQualifier*
         TypedefName
         TypeQualifier*
       )

@@ -197,6 +197,16 @@ int main(){ struct N *head = 0;
   for (int i = 0; i < 6; i++) printf("%d ", dist[i]);
   printf("\\n"); return 0; }`), '', '0 7 9 20 20 11 \n'],
 
+  // `while (scanf("%d", &n) == 1)` is how C reads until end of input, and the
+  // last read raised "Memory overflow" instead of returning a short count.
+  ['scanf in a loop to end of input', C(`int main(){ int n, count = 0, sum = 0;
+  while (scanf("%d", &n) == 1) { count++; sum += n; }
+  printf("%d %d\\n", count, sum); return 0; }`), '4\n5\n6\n', '3 15\n'],
+
+  ['scanf returns how many it filled', C(`int main(){ int a, b;
+  int r = scanf("%d %d", &a, &b);
+  printf("r=%d a=%d\\n", r, a); return 0; }`), '5\n', 'r=1 a=5\n'],
+
   // ── the plain C that already worked, so a regression is visible ────────────
   ['string.h', C(`int main(){ char a[40] = "Ada"; char b[10] = " Lovelace";
   strcat(a, b); printf("%s %d\\n", a, (int)strlen(a)); return 0; }`,

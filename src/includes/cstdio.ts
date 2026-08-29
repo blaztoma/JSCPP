@@ -531,16 +531,22 @@ export = {
 
         const _scanf = function (rt: CRuntime, _this: Variable, pchar: ArrayVariable, ...args: (NormalPointerVariable | ArrayVariable)[]) {
 
-            let val;
             const format = rt.getStringFromCharArray(pchar);
             const matched_values = __scanf(format);
 
+            // C returns the number of conversions that SUCCEEDED, and returns a
+            // short count at end of input rather than failing. Writing a null
+            // through raised "Memory overflow" instead, so the standard
+            // `while (scanf("%d", &n) == 1)` loop died on its last read.
+            let assigned = 0;
             for (let i = 0; i < matched_values.length; i++) {
-                val = matched_values[i];
+                const val = matched_values[i];
+                if (val === null || val === undefined) break;
                 _set_pointer_value(args[i], val);
+                assigned++;
             }
 
-            return rt.val(rt.intTypeLiteral, matched_values.length);
+            return rt.val(rt.intTypeLiteral, assigned);
         };
 
 

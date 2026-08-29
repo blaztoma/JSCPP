@@ -80,9 +80,11 @@ export = {
         // not reclaiming early, and the same trade is already made for delete.
         const _block = function (rt: CRuntime, bytes: number) {
             if (!(bytes >= 0)) rt.raiseException("cannot allocate a negative number of bytes");
-            const block: any = rt.defaultValue(rt.arrayPointerType(rt.charTypeLiteral, Math.max(1, bytes)), true);
-            block.heapBytes = bytes;
-            return block;
+            // The marker rides on the TYPE, not the variable: a cast clones the
+            // variable and would drop a stray property, but types are shared.
+            const blockType: any = rt.arrayPointerType(rt.charTypeLiteral, Math.max(1, bytes));
+            blockType.fromMalloc = bytes;
+            return rt.defaultValue(blockType, true);
         };
 
         const _malloc = (rt: CRuntime, _this: Variable, size: IntVariable) => _block(rt, size.v as number);

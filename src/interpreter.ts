@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./includes/shared/string_utils";
 import * as classes from "./classes";
-import { ArrayType, CRuntime, RuntimeScope, Variable, VariableType } from "./rt";
+import { ArrayType, CRuntime, RuntimeScope, StructType, Variable, VariableType } from "./rt";
 
 /*
  * decaffeinate suggestions:
@@ -9,7 +9,7 @@ import { ArrayType, CRuntime, RuntimeScope, Variable, VariableType } from "./rt"
  * DS207: Consider shorter variations of null checks
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-const sampleGeneratorFunction = function* (): Generator<null, void, void> {
+const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
 };
 
@@ -193,7 +193,7 @@ export class Interpreter extends BaseInterpreter {
                             if (_param.Declarator.Declarator.right[0].type === "DirectDeclarator_modifier_ParameterTypeList") {
                                 const dim = _param.Declarator.Declarator.right[0];
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = true;
-                                const {argTypes: _argTypes , argNames: _argNames, optionalArgs: _optionalArgs} = yield* interp.visit(interp, dim.ParameterTypeList, param);
+                                const { argTypes: _argTypes, argNames: _argNames, optionalArgs: _optionalArgs } = yield* interp.visit(interp, dim.ParameterTypeList, param);
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = false;
                                 _type = rt.functionPointerType(_type, _argTypes);
                             } else {
@@ -260,7 +260,7 @@ export class Interpreter extends BaseInterpreter {
                 } else {
                     rt.raiseException("unacceptable argument list", s.Declarator.right);
                 }
-                const { argTypes , argNames, optionalArgs, readonlyArgs } = yield* interp.visit(interp, ptl, param);
+                const { argTypes, argNames, optionalArgs, readonlyArgs } = yield* interp.visit(interp, ptl, param);
                 const stat = s.CompoundStatement;
                 rt.defFunc(scope, name, basetype, argTypes, argNames, stat, interp, optionalArgs, readonlyArgs);
             },
@@ -681,7 +681,7 @@ export class Interpreter extends BaseInterpreter {
                 let iterator = null;
                 try {
                     iterator = rt.getFunc(iterable.t, "__iterator", [])(rt, iterable);
-                } catch(ex) {
+                } catch (ex) {
                     if (rt.isArrayType(iterable.t) || rt.isStringType(iterable.t)) {
                         iterator = iterable.v.target[Symbol.iterator]();
                     }
@@ -838,8 +838,8 @@ export class Interpreter extends BaseInterpreter {
                 // not exist"). Only a bare identifier that names a struct or
                 // class is treated this way, so ordinary calls are untouched.
                 if (s.Expression.type === "IdentifierExpression") {
-                    const typeName = s.Expression.Identifier;
-                    const candidate = { type: "struct", name: typeName };
+                    const typeName = s.Expression.Identifier as string;
+                    const candidate: StructType = { type: "struct", name: typeName };
                     if (!rt.varAlreadyDefined(typeName)
                         && (rt.getTypeSignature(candidate) in rt.types)) {
                         const constructorArgs: Variable[] = [];
@@ -854,7 +854,7 @@ export class Interpreter extends BaseInterpreter {
                 // console.log "==================="
                 // console.log "s: " + JSON.stringify(s)
                 // console.log "==================="
-                const args: Variable[] = yield* (function* () {
+                const args: Variable[] = yield* (function*() {
                     const result = [];
                     for (const e of s.args) {
                         let thisArg = yield* interp.visit(interp, e, param);

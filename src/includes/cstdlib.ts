@@ -12,7 +12,7 @@ export = {
 
         // Returns number between 0 (inclusive) and 1.0 (exclusive),
         // just like Math.random().
-        const random = function () {
+        const random = function() {
             m_z = ((36969 * (m_z & 65535)) + (m_z >> 16)) & mask;
             m_w = ((18000 * (m_w & 65535)) + (m_w >> 16)) & mask;
             const result = ((m_z << 16) + m_w) & mask;
@@ -21,7 +21,7 @@ export = {
 
         const pchar = rt.normalPointerType(rt.charTypeLiteral);
 
-        const _atof = function (rt: CRuntime, _this: Variable, str: ArrayVariable) {
+        const _atof = function(rt: CRuntime, _this: Variable, str: ArrayVariable) {
             if (rt.isStringType(str.t)) {
                 const s = rt.getStringFromCharArray(str);
                 const val = Number.parseFloat(s);
@@ -33,7 +33,7 @@ export = {
 
         rt.regFunc(_atof, "global", "atof", [pchar], rt.floatTypeLiteral);
 
-        const _atoi = function (rt: CRuntime, _this: Variable, str: ArrayVariable) {
+        const _atoi = function(rt: CRuntime, _this: Variable, str: ArrayVariable) {
             if (rt.isStringType(str.t)) {
                 const s = rt.getStringFromCharArray(str);
                 const val = Number.parseInt(s, 10);
@@ -45,7 +45,7 @@ export = {
 
         rt.regFunc(_atoi, "global", "atoi", [pchar], rt.intTypeLiteral);
 
-        const _atol = function (rt: CRuntime, _this: Variable, str: ArrayVariable) {
+        const _atol = function(rt: CRuntime, _this: Variable, str: ArrayVariable) {
             if (rt.isStringType(str.t)) {
                 const s = rt.getStringFromCharArray(str);
                 const val = Number.parseInt(s, 10);
@@ -61,7 +61,7 @@ export = {
             rt.scope[0].variables["RAND_MAX"] = rt.val(rt.intTypeLiteral, 0x7fffffff);
         }
 
-        const _rand = function (rt: CRuntime, _this: Variable) {
+        const _rand = function(rt: CRuntime, _this: Variable) {
             const val = Math.floor(random() * (rt.scope[0].variables["RAND_MAX"].v as number + 1));
             return rt.val(rt.intTypeLiteral, val);
         };
@@ -78,7 +78,7 @@ export = {
         // and does nothing: allocations sit on the JavaScript heap, which its
         // own collector reclaims. Refusing to run correct C would be worse than
         // not reclaiming early, and the same trade is already made for delete.
-        const _block = function (rt: CRuntime, bytes: number) {
+        const _block = function(rt: CRuntime, bytes: number) {
             if (!(bytes >= 0)) rt.raiseException("cannot allocate a negative number of bytes");
             // The marker rides on the TYPE, not the variable: a cast clones the
             // variable and would drop a stray property, but types are shared.
@@ -100,10 +100,10 @@ export = {
         const _realloc = (rt: CRuntime, _this: Variable, _ptr: Variable, size: IntVariable) => _block(rt, size.v as number);
         rt.regFunc(_realloc, "global", "realloc", ["?", rt.intTypeLiteral], rt.voidPointerType);
 
-        const _free = (rt: CRuntime, _this: Variable, _ptr: Variable) => undefined;
+        const _free = (_rt: CRuntime, _this: Variable, _ptr: Variable): undefined => undefined;
         rt.regFunc(_free, "global", "free", ["?"], rt.voidTypeLiteral);
 
-        const _system = function (rt: CRuntime, _this: Variable, command: ArrayVariable) {
+        const _system = function(rt: CRuntime, _this: Variable, command: ArrayVariable) {
             if (command === rt.nullPointer) {
                 return rt.val(rt.intTypeLiteral, 1);
             } else if (rt.isStringType(command)) {
@@ -140,11 +140,11 @@ export = {
             }
         };
 
-        const _bsearch = function (rt: CRuntime, _this: Variable, key: NormalPointerVariable, base: NormalPointerVariable, num: IntVariable, size: IntVariable, cmp: FunctionPointerVariable) {
+        const _bsearch = function(rt: CRuntime, _this: Variable, key: NormalPointerVariable, base: NormalPointerVariable, num: IntVariable, size: IntVariable, cmp: FunctionPointerVariable) {
             if (rt.isArrayType(base)) {
                 const L = base.v.target;
                 const val = key;
-                const wrapper = function (a: Variable, b: Variable, indexB: number) {
+                const wrapper = function(a: Variable, b: Variable, indexB: number) {
                     const pbType = base.t;
                     const pbVal = rt.makeArrayPointerValue(L, indexB);
                     const pointerB = rt.val(pbType, pbVal);
@@ -164,7 +164,7 @@ export = {
         const cmpType = rt.functionPointerType(rt.intTypeLiteral, [rt.voidPointerType, rt.voidPointerType]);
         rt.regFunc(_bsearch, "global", "bsearch", [rt.voidPointerType, rt.voidPointerType, rt.intTypeLiteral, rt.intTypeLiteral, cmpType], rt.voidPointerType);
 
-        const _qsort = function (rt: CRuntime, _this: Variable, base: ArrayVariable, num: IntVariable, size: IntVariable, cmp: FunctionPointerVariable) {
+        const _qsort = function(rt: CRuntime, _this: Variable, base: ArrayVariable, num: IntVariable, size: IntVariable, cmp: FunctionPointerVariable) {
             if (rt.isArrayType(base)) {
                 const L = base.v.target;
                 for (let i = 0; i < L.length; i++) {
@@ -172,7 +172,7 @@ export = {
                     ele.arrayIndex = i;
                 }
 
-                const wrapper = function (a: ArrayElementVariable, b: ArrayElementVariable) {
+                const wrapper = function(a: ArrayElementVariable, b: ArrayElementVariable) {
                     const pType = base.t;
                     const pbVal = rt.makeArrayPointerValue(L, b.arrayIndex);
                     const paVal = rt.makeArrayPointerValue(L, a.arrayIndex);
@@ -194,7 +194,7 @@ export = {
 
         rt.regFunc(_abs, "global", "abs", [rt.intTypeLiteral], rt.intTypeLiteral);
 
-        const _div = function (rt: CRuntime, _this: Variable, numer: IntVariable, denom: IntVariable) {
+        const _div = function(rt: CRuntime, _this: Variable, numer: IntVariable, denom: IntVariable) {
             if (denom.v === 0) {
                 rt.raiseException("divided by zero");
             }
@@ -227,7 +227,7 @@ export = {
 
         rt.regFunc(_labs, "global", "labs", [rt.longTypeLiteral], rt.longTypeLiteral);
 
-        const _ldiv = function (rt: CRuntime, _this: Variable, numer: IntVariable, denom: IntVariable) {
+        const _ldiv = function(rt: CRuntime, _this: Variable, numer: IntVariable, denom: IntVariable) {
             if (denom.v === 0) {
                 rt.raiseException("divided by zero");
             }

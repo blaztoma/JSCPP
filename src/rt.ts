@@ -349,7 +349,7 @@ export class CRuntime {
         }
     };
 
-    getSize(element: Variable) {
+    getSize(element: Variable): number {
         let ret = 0;
         if (this.isArrayType(element) && (element.v.position === 0)) {
             let i = 0;
@@ -363,7 +363,7 @@ export class CRuntime {
         return ret;
     };
 
-    getSizeByType(t: VariableType) {
+    getSizeByType(t: VariableType): number {
         if (this.isPointerType(t)) {
             return this.config.limits["pointer"].bytes;
         } else if (this.isPrimitiveType(t)) {
@@ -1129,7 +1129,7 @@ export class CRuntime {
             if (blockBytes != null) {
                 const eleType = this.isArrayType(type) ? type.eleType
                     : this.isNormalPointerType(type) ? type.targetType : null;
-                if (eleType != null && eleType.type === "void") return value;
+                if (eleType != null && (eleType as any).type === "void") return value;
                 if (eleType != null) {
                     let width = 1;
                     try { width = this.getSizeByType(eleType) || 1; } catch (e) { width = 1; }
